@@ -7,23 +7,25 @@ use Test2::V0;
 use Object::Pad::Enum;
 
 enum Colors {
-   val RED  ( name => 'red',  hex => '#FF0000' );
-   val BLUE ( name => 'blue', hex => '#0000FF' );
+   val RED  ( label => 'red',  hex => '#FF0000' );
+   val BLUE ( label => 'blue', hex => '#0000FF' );
 
-   field $name :param :reader;
-   field $hex  :param :reader;
+   field $label :param :reader;
+   field $hex   :param :reader;
 
-   method uc_name() { return uc $name; }
+   method uc_label() { return uc $label; }
 }
 
-is( Colors->RED->name,    'red',     'RED->name reader' );
-is( Colors->RED->hex,     '#FF0000', 'RED->hex reader' );
-is( Colors->RED->uc_name, 'RED',     'RED->uc_name method' );
-is( Colors->RED->ordinal, 0,         'RED ordinal' );
+is( Colors->RED->name,     'RED',     'RED->name auto-injected' );
+is( Colors->RED->label,    'red',     'RED->label reader' );
+is( Colors->RED->hex,      '#FF0000', 'RED->hex reader' );
+is( Colors->RED->uc_label, 'RED',     'RED->uc_label method' );
+is( Colors->RED->ordinal,  0,         'RED ordinal' );
 
-is( Colors->BLUE->name,    'blue',     'BLUE->name reader' );
-is( Colors->BLUE->hex,     '#0000FF',  'BLUE->hex reader' );
-is( Colors->BLUE->uc_name, 'BLUE',     'BLUE->uc_name method' );
-is( Colors->BLUE->ordinal, 1,          'BLUE ordinal' );
+is( Colors->BLUE->name,     'BLUE',     'BLUE->name auto-injected' );
+is( Colors->BLUE->label,    'blue',     'BLUE->label reader' );
+is( Colors->BLUE->hex,      '#0000FF',  'BLUE->hex reader' );
+is( Colors->BLUE->uc_label, 'BLUE',     'BLUE->uc_label method' );
+is( Colors->BLUE->ordinal,  1,          'BLUE ordinal' );
 
 done_testing;

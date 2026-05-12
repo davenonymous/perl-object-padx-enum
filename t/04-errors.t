@@ -44,6 +44,19 @@ use Object::Pad::Enum;
    like( $@, qr/reserved/, 'reserved error message' );
 }
 
+# Runtime error: reserved val name "name".
+{
+   my $ok = eval q{
+      use Object::Pad::Enum;
+      enum ReservedName {
+         val name;
+      }
+      1;
+   };
+   ok( !$ok, 'reserved name "name" rejected' );
+   like( $@, qr/reserved/, 'reserved error message for name' );
+}
+
 # Compile-time error: val outside enum, without `use` in eval (hint key gates it).
 {
    my $ok = eval q{

@@ -24,17 +24,18 @@ C<Object::Pad::Enum> - syntactic sugar for enum-like singleton-bearing C<Object:
    use Object::Pad::Enum;
 
    enum Colors {
-      val RED  ( name => 'red',  hex => '#FF0000' );
-      val BLUE ( name => 'blue', hex => '#0000FF' );
+      val RED  ( label => 'red',  hex => '#FF0000' );
+      val BLUE ( label => 'blue', hex => '#0000FF' );
 
-      field $name :param :reader;
-      field $hex  :param :reader;
+      field $label :param :reader;
+      field $hex   :param :reader;
 
-      method uc_name { return uc $name; }
+      method uc_label { return uc $label; }
    }
 
    say Colors->RED->ordinal;     # 0
-   say Colors->RED->name;        # red
+   say Colors->RED->name;        # RED
+   say Colors->RED->label;       # red
    say Colors->BLUE->uc_name;    # BLUE
    say $_->name for Colors->values;
 
@@ -46,10 +47,11 @@ C<Object::Pad::Enum> adds two keywords on top of L<Object::Pad>:
 
 =item * C<enum NAME { ... }>
 
-Declares a class (using L<Object::Pad>'s C<class> machinery) and auto-injects a
-C<$ordinal :reader> field. Inside the block, all normal C<Object::Pad>
-constructs (C<field>, C<method>, C<ADJUST>, ...) are available, plus the
-C<val> keyword.
+Declares a class (using L<Object::Pad>'s C<class> machinery) and auto-injects
+C<$ordinal :reader> and C<name :reader> fields. The C<name> reader returns the
+identifier under which the singleton was declared (e.g. C<"RED">). Inside the
+block, all normal C<Object::Pad> constructs (C<field>, C<method>, C<ADJUST>,
+...) are available, plus the C<val> keyword.
 
 =item * C<val NAME ( ARGS );>
 
@@ -91,8 +93,8 @@ supported. If you need them, declare a plain C<class> instead.
 
 =item *
 
-The names C<values>, C<from_ordinal>, C<from_name> and C<ordinal> are reserved
-and must not be used as C<val> names.
+The names C<values>, C<from_ordinal>, C<from_name>, C<ordinal> and C<name> are
+reserved and must not be used as C<val> names.
 
 =back
 
@@ -103,7 +105,7 @@ and must not be used as C<val> names.
 my %Pending;
 
 my %RESERVED_VAL_NAMES = map { $_ => 1 } qw(
-   values from_ordinal from_name ordinal
+   values from_ordinal from_name ordinal name
    new BUILD DOES META
 );
 
@@ -126,8 +128,10 @@ sub _begin_enum {
 
    my $meta = Object::Pad::MOP::Class->begin_class( $name );
 
-   # $ordinal is reader-only (not a :param) so user val args cannot override it.
+   # $ordinal and $_name are reader-only (not :param) so user val args cannot
+   # override them; both are stamped after construction in _finalize_enum.
    $meta->add_field( '$ordinal', reader => 'ordinal' );
+   $meta->add_field( '$_name',   reader => 'name'    );
 
    $Pending{ $name } = { meta => $meta, vals => [], seen => {} };
 
@@ -162,6 +166,7 @@ sub _finalize_enum {
 
    my $meta       = $entry->{ meta };
    my $ord_field  = $meta->get_field( '$ordinal' );
+   my $name_field = $meta->get_field( '$_name'   );
    my @ordered;
 
    my $n = 0;
@@ -171,8 +176,9 @@ sub _finalize_enum {
       my $instance = eval { $class->new( @$args ) };
       $@ and croak "Failed to construct enum value '$name' of '$class' at line $line: $@";
 
-      # Stamp the ordinal after construction so it isn't a user-facing :param.
-      $ord_field->value( $instance ) = $n;
+      # Stamp the ordinal and name after construction so they aren't user-facing :params.
+      $ord_field->value(  $instance ) = $n;
+      $name_field->value( $instance ) = $name;
 
       push @ordered, [ $name, $instance ];
       $n++;

@@ -126,8 +126,8 @@ inside same-unit `do { ... }` and `eval "STRING"`, sees them as expected
   explicitly. Intercepting Object::Pad's `field` keyword would require
   reaching into its internals and is rejected on KISS grounds.
 - **DO NOT** use names `values`, `from_ordinal`, `from_name`, `ordinal`,
-  `new`, `BUILD`, `DOES`, or `META` as `val` names; they are reserved by
-  either us or Object::Pad.
+  `name`, `new`, `BUILD`, `DOES`, or `META` as `val` names; they are reserved
+  by either us or Object::Pad.
 
 ## RELATED PUBLIC APIs
 

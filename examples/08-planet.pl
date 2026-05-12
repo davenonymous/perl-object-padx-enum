@@ -4,7 +4,7 @@
 
 use v5.22;
 use warnings;
-use Object::Pad::Enum;
+use Object::PadX::Enum;
 
 my $G = 6.67430e-11;   # m^3 kg^-1 s^-2
 

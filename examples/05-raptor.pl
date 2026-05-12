@@ -4,7 +4,7 @@
 
 use v5.22;
 use warnings;
-use Object::Pad::Enum;
+use Object::PadX::Enum;
 
 enum Raptor {
    item VELOCIRAPTOR   ( max_speed_kmh => 60, max_weight_kg =>  15, max_height_cm =>  50 );

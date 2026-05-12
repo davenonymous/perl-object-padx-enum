@@ -9,7 +9,7 @@ use Test2::V0;
 # from the same eval immediately after the enum block.
 {
    my $ord = eval q{
-      use Object::Pad::Enum;
+      use Object::PadX::Enum;
       enum InEval {
          item A;
          item B;
@@ -22,7 +22,7 @@ use Test2::V0;
 
 # do BLOCK runs at runtime within the enclosing unit, after that unit's
 # UNITCHECK. The item/finalize ops execute when the block runs.
-use Object::Pad::Enum;
+use Object::PadX::Enum;
 
 my $result = do {
    enum InDo {

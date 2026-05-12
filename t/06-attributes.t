@@ -5,7 +5,7 @@ use warnings;
 use Test2::V0;
 
 use Object::Pad 0.825;
-use Object::Pad::Enum;
+use Object::PadX::Enum;
 
 # Fixtures: plain Object::Pad classes and roles. Defined in BEGIN blocks so
 # their packages (and $VERSION values) exist before later `enum` declarations
@@ -69,7 +69,7 @@ BEGIN {
 # :isa with VERSION (failing)
 {
    my $ok = eval q{
-      use Object::Pad::Enum;
+      use Object::PadX::Enum;
       enum SubBad :isa(TestBase 99.0) {
          item Z;
       }
@@ -109,7 +109,7 @@ BEGIN {
 # :abstract is rejected with semantic message.
 {
    my $ok = eval q{
-      use Object::Pad::Enum;
+      use Object::PadX::Enum;
       enum Abstr :abstract {
          item A;
       }
@@ -123,7 +123,7 @@ BEGIN {
 # :strict is rejected as unsupported.
 {
    my $ok = eval q{
-      use Object::Pad::Enum;
+      use Object::PadX::Enum;
       enum Strict1 :strict(params) {
          item A;
       }
@@ -136,7 +136,7 @@ BEGIN {
 # :repr is rejected as unsupported.
 {
    my $ok = eval q{
-      use Object::Pad::Enum;
+      use Object::PadX::Enum;
       enum Repr1 :repr(keys) {
          item A;
       }
@@ -149,7 +149,7 @@ BEGIN {
 # Unknown attribute is rejected.
 {
    my $ok = eval q{
-      use Object::Pad::Enum;
+      use Object::PadX::Enum;
       enum Bogus :bogus {
          item A;
       }
@@ -162,7 +162,7 @@ BEGIN {
 # Unknown superclass is reported clearly.
 {
    my $ok = eval q{
-      use Object::Pad::Enum;
+      use Object::PadX::Enum;
       enum NoSuch :isa(No::Such::Package::Ever) {
          item A;
       }
@@ -175,7 +175,7 @@ BEGIN {
 # Double :isa is rejected.
 {
    my $ok = eval q{
-      use Object::Pad::Enum;
+      use Object::PadX::Enum;
       enum Double :isa(TestBase) :isa(TestBase) {
          item A;
       }

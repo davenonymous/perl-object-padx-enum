@@ -1,4 +1,4 @@
-# Object::Pad::Enum
+# Object::PadX::Enum
 
 A thin sugar layer over `Object::Pad` that adds two keywords: `enum NAME { ... }`
 and `item NAME(...)`. The enum block becomes an `Object::Pad` class with an
@@ -107,7 +107,7 @@ inside same-unit `do { ... }` and `eval "STRING"`, sees them as expected
 - Module ends with `0x55AA;` (matches Object::Pad / XS::Parse::Keyword style).
 - POD uses `=encoding UTF-8` and `=for highlighter language=perl`.
 - Tests use `Test2::V0`, 2-digit prefix grouping, `done_testing` at the end.
-- XS is in a single file (`lib/Object/Pad/Enum.xs`); no separate `src/*.c`.
+- XS is in a single file (`lib/Object/PadX/Enum.xs`); no separate `src/*.c`.
 - Public surface is whatever appears in the POD of `Enum.pm`; everything in
   the underscored helpers is internal and may change.
 

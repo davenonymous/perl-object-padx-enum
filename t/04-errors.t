@@ -4,12 +4,12 @@ use warnings;
 
 use Test2::V0;
 
-use Object::Pad::Enum;
+use Object::PadX::Enum;
 
 # Compile-time error: item outside enum.
 {
    my $ok = eval q{
-      use Object::Pad::Enum;
+      use Object::PadX::Enum;
       item NOPE;
       1;
    };
@@ -20,7 +20,7 @@ use Object::Pad::Enum;
 # Runtime error: duplicate item name.
 {
    my $ok = eval q{
-      use Object::Pad::Enum;
+      use Object::PadX::Enum;
       enum Dup {
          item SAME;
          item SAME;
@@ -34,7 +34,7 @@ use Object::Pad::Enum;
 # Runtime error: reserved item name.
 {
    my $ok = eval q{
-      use Object::Pad::Enum;
+      use Object::PadX::Enum;
       enum Reserved {
          item values;
       }
@@ -47,7 +47,7 @@ use Object::Pad::Enum;
 # Runtime error: reserved item name "name".
 {
    my $ok = eval q{
-      use Object::Pad::Enum;
+      use Object::PadX::Enum;
       enum ReservedName {
          item name;
       }

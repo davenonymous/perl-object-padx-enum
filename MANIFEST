@@ -1,8 +1,8 @@
 Build.PL
 Changes
 MANIFEST
-lib/Object/Pad/Enum.pm
-lib/Object/Pad/Enum.xs
+lib/Object/PadX/Enum.pm
+lib/Object/PadX/Enum.xs
 t/01-basic.t
 t/02-fields-methods.t
 t/03-lookups.t

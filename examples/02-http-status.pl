@@ -4,7 +4,7 @@
 
 use v5.22;
 use warnings;
-use Object::Pad::Enum;
+use Object::PadX::Enum;
 
 enum HttpStatus {
    item OK                    ( code => 200, reason => 'OK' );

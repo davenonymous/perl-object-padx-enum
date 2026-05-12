@@ -6,7 +6,7 @@ use XS::Parse::Keyword::Builder;
 use Object::Pad::ExtensionBuilder;
 
 my $build = Module::Build->new(
-   module_name => 'Object::Pad::Enum',
+   module_name => 'Object::PadX::Enum',
    dist_abstract => 'syntactic sugar for enum-like singleton-bearing Object::Pad classes',
    license => 'perl',
    author => [ 'Dave' ],

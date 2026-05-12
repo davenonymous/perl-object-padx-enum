@@ -1,4 +1,4 @@
-package Object::Pad::Enum 0.01;
+package Object::PadX::Enum 0.01;
 
 use v5.22;
 use warnings;
@@ -17,11 +17,11 @@ XSLoader::load( __PACKAGE__, our $VERSION );
 
 =head1 NAME
 
-C<Object::Pad::Enum> - syntactic sugar for enum-like singleton-bearing C<Object::Pad> classes
+C<Object::PadX::Enum> - syntactic sugar for enum-like singleton-bearing C<Object::Pad> classes
 
 =head1 SYNOPSIS
 
-   use Object::Pad::Enum;
+   use Object::PadX::Enum;
 
    enum Colors {
       item RED  ( label => 'red',  hex => '#FF0000' );
@@ -41,7 +41,7 @@ C<Object::Pad::Enum> - syntactic sugar for enum-like singleton-bearing C<Object:
 
 =head1 DESCRIPTION
 
-C<Object::Pad::Enum> adds two keywords on top of L<Object::Pad>:
+C<Object::PadX::Enum> adds two keywords on top of L<Object::Pad>:
 
 =over 4
 
@@ -101,7 +101,7 @@ installed on the enum class for each declared singleton C<NAME>:
 =item *
 
 User C<field>s require explicit C<:param> if you intend to set them via
-C<item> args. C<Object::Pad::Enum> does I<not> inject C<:param> automatically.
+C<item> args. C<Object::PadX::Enum> does I<not> inject C<:param> automatically.
 
 =item *
 
@@ -139,8 +139,8 @@ sub import {
    my $class  = shift;
    my $caller = caller;
 
-   $^H{ 'Object::Pad::Enum/enum' } = 1;
-   $^H{ 'Object::Pad::Enum/item' } = 1;
+   $^H{ 'Object::PadX::Enum/enum' } = 1;
+   $^H{ 'Object::PadX::Enum/item' } = 1;
 
    Object::Pad->import_into( $caller );
 }

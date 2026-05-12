@@ -1,4 +1,4 @@
-Revision history for Object::Pad::Enum
+Revision history for Object::PadX::Enum
 
 0.01    2026-05-12
         First version. Two keywords: `enum NAME { ... }` and `item NAME(...)`.

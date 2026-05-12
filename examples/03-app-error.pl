@@ -7,7 +7,7 @@ use warnings;
 use feature 'signatures';
 no warnings 'experimental::signatures';
 use Carp ();
-use Object::Pad::Enum;
+use Object::PadX::Enum;
 
 enum AppError {
    item NOT_FOUND    ( code => 1404, message => 'Resource not found'    );

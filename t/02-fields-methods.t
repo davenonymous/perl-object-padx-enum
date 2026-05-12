@@ -4,7 +4,7 @@ use warnings;
 
 use Test2::V0;
 
-use Object::Pad::Enum;
+use Object::PadX::Enum;
 
 enum Colors {
    item RED  ( label => 'red',  hex => '#FF0000' );

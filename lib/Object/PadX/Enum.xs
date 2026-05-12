@@ -1,7 +1,7 @@
-/*  Object::Pad::Enum
+/*  Object::PadX::Enum
  *
  *  Thin XS layer registering two keywords (`enum`, `item`) via XS::Parse::Keyword.
- *  All non-trivial work happens in Object::Pad::Enum (the .pm) via the
+ *  All non-trivial work happens in Object::PadX::Enum (the .pm) via the
  *  documented Object::Pad::MOP::Class API.
  *
  *  Pattern reference: Object-Pad-0.825/lib/Object/Pad.xs:406-625 (build_classlike)
@@ -91,7 +91,7 @@ static int build_enum(pTHX_ OP **out, XSParseKeywordPiece *args[], size_t nargs,
       XPUSHs(packagename);
       XPUSHs(attrs_ref);
       PUTBACK;
-      call_pv("Object::Pad::Enum::_begin_enum", G_VOID | G_DISCARD);
+      call_pv("Object::PadX::Enum::_begin_enum", G_VOID | G_DISCARD);
       FREETMPS;
       LEAVE;
    }
@@ -125,12 +125,12 @@ static int build_enum(pTHX_ OP **out, XSParseKeywordPiece *args[], size_t nargs,
    inside_enum_depth      = saved_depth;
    current_enum_classname = saved_classname;
 
-   /* Trailing runtime call: Object::Pad::Enum::_finalize_enum("NAME"); */
+   /* Trailing runtime call: Object::PadX::Enum::_finalize_enum("NAME"); */
    OP *finalize_args = newLISTOP(OP_LIST, 0, NULL, NULL);
    finalize_args = op_append_elem(OP_LIST, finalize_args,
       newSVOP(OP_CONST, 0, SvREFCNT_inc(packagename)));
 
-   OP *finalize_call = make_call_op("Object::Pad::Enum::_finalize_enum", finalize_args);
+   OP *finalize_call = make_call_op("Object::PadX::Enum::_finalize_enum", finalize_args);
    OP *finalize_stmt = newSTATEOP(0, NULL, finalize_call);
 
    /* body may be NULL for an empty enum block. */
@@ -155,7 +155,7 @@ static const struct XSParseKeywordPieceType pieces_enum[] = {
 };
 
 static const struct XSParseKeywordHooks hooks_enum = {
-   .permit_hintkey = "Object::Pad::Enum/enum",
+   .permit_hintkey = "Object::PadX::Enum/enum",
    .pieces         = pieces_enum,
    .build          = &build_enum,
 };
@@ -197,7 +197,7 @@ static int build_item(pTHX_ OP **out, XSParseKeywordPiece *args[], size_t nargs,
    if (listexpr)
       call_args = op_append_elem(OP_LIST, call_args, listexpr);
 
-   *out = make_call_op("Object::Pad::Enum::_register_item", call_args);
+   *out = make_call_op("Object::PadX::Enum::_register_item", call_args);
    return KEYWORD_PLUGIN_STMT;
 }
 
@@ -209,7 +209,7 @@ static const struct XSParseKeywordPieceType pieces_item[] = {
 };
 
 static const struct XSParseKeywordHooks hooks_item = {
-   .permit_hintkey = "Object::Pad::Enum/item",
+   .permit_hintkey = "Object::PadX::Enum/item",
    .pieces         = pieces_item,
    .check          = &check_item,
    .build          = &build_item,
@@ -217,7 +217,7 @@ static const struct XSParseKeywordHooks hooks_item = {
 
 /* --------------------------------------------------------------------- */
 
-MODULE = Object::Pad::Enum   PACKAGE = Object::Pad::Enum
+MODULE = Object::PadX::Enum   PACKAGE = Object::PadX::Enum
 
 BOOT:
    boot_xs_parse_keyword(0.48);

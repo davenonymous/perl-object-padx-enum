@@ -4,7 +4,7 @@
 
 use v5.22;
 use warnings;
-use Object::Pad::Enum;
+use Object::PadX::Enum;
 
 enum Direction {
    item NORTH ( dx =>  0, dy =>  1 );

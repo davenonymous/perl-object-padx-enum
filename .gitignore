@@ -1,0 +1,15 @@
+# Module::Build artifacts
+/Build
+/_build/
+/blib/
+/MYMETA.*
+
+# XS build outputs
+/lib/Object/Pad/Enum.c
+/lib/Object/Pad/Enum.o
+/lib/Object/Pad/Enum.bs
+
+# Editor / OS noise
+*.swp
+*.swo
+.DS_Store

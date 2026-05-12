@@ -1,0 +1,6 @@
+Revision history for Object::Pad::Enum
+
+0.01    2026-05-12
+        First version. Two keywords: `enum NAME { ... }` and `val NAME(...)`.
+        Auto-injects `$ordinal :reader` and installs per-value accessors
+        plus `values`, `from_ordinal`, `from_name` class methods.

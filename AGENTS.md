@@ -1,8 +1,8 @@
 # Object::Pad::Enum
 
 A thin sugar layer over `Object::Pad` that adds two keywords: `enum NAME { ... }`
-and `val NAME(...)`. The enum block becomes an `Object::Pad` class with an
-auto-injected `$ordinal :reader` field, and each `val` declaration becomes a
+and `item NAME(...)`. The enum block becomes an `Object::Pad` class with an
+auto-injected `$ordinal :reader` field, and each `item` declaration becomes a
 class-common accessor returning a singleton instance.
 
 ## STRUCTURE
@@ -13,14 +13,15 @@ perl-object-pad-enum/
 ├── Changes
 ├── MANIFEST
 ├── lib/Object/Pad/
-│   ├── Enum.pm                    # import(), _begin_enum, _register_val, _finalize_enum
-│   └── Enum.xs                    # `enum` and `val` keyword registrations (XPK)
+│   ├── Enum.pm                    # import(), _begin_enum, _register_item, _finalize_enum
+│   └── Enum.xs                    # `enum` and `item` keyword registrations (XPK)
 └── t/                             # Test2::V0
     ├── 01-basic.t                 # ordinals, identity
     ├── 02-fields-methods.t        # user fields/methods with :param
     ├── 03-lookups.t               # values, from_ordinal, from_name, empty enum
-    ├── 04-errors.t                # val outside enum, duplicates, reserved names
-    └── 05-eval-and-do.t           # eval-string and do-BLOCK contexts
+    ├── 04-errors.t                # item outside enum, duplicates, reserved names
+    ├── 05-eval-and-do.t           # eval-string and do-BLOCK contexts
+    └── 06-attributes.t            # enum :isa / :does attribute support
 ```
 
 ## ARCHITECTURE
@@ -30,15 +31,15 @@ via the documented `Object::Pad::MOP::Class` API.
 
 | Layer | Responsibility                                                           |
 |-------|--------------------------------------------------------------------------|
-| XS    | Register `enum`/`val` keywords; parse package name + braces + statements |
-| XS    | Emit runtime ops calling Perl helpers (`_register_val`, `_finalize_enum`) |
+| XS    | Register `enum`/`item` keywords; parse package name + braces + statements |
+| XS    | Emit runtime ops calling Perl helpers (`_register_item`, `_finalize_enum`) |
 | Perl  | `_begin_enum`: `begin_class()` + add `$ordinal :reader`                  |
-| Perl  | `_register_val`: queue `[name, args, line]` in `%Pending{$class}`        |
+| Perl  | `_register_item`: queue `[name, args, line]` in `%Pending{$class}`       |
 | Perl  | `_finalize_enum`: construct singletons, stamp ordinal, install accessors |
 
 ## EXECUTION TIMELINE
 
-For `enum Colors { val RED(name=>"r"); val BLUE; ... }`:
+For `enum Colors { item RED(name=>"r"); item BLUE; ... }`:
 
 1. **Parse time (XS `.build` for `enum`):**
    - `XPK_PACKAGENAME` reads `Colors`.
@@ -46,14 +47,14 @@ For `enum Colors { val RED(name=>"r"); val BLUE; ... }`:
      queues UNITCHECK auto-seal CV) -> adds `$ordinal :reader` field.
    - Snapshot + switch `PL_curstash`/`PL_curstname` to `Colors`.
    - `parse_stmtseq(0)` reads the body; Object::Pad's `field`/`method`
-     keywords fire normally; each `val` emits a runtime call op.
+     keywords fire normally; each `item` emits a runtime call op.
    - Emit trailing op: `_finalize_enum("Colors")`.
 
 2. **UNITCHECK phase of the enclosing compilation unit:**
    - `begin_class`'s queued seal CV fires; class is sealed.
 
 3. **Runtime of that unit (in source order):**
-   - Each `val`'s runtime op evaluates its arg list and calls `_register_val`,
+   - Each `item`'s runtime op evaluates its arg list and calls `_register_item`,
      queuing `[name, args, line]`.
    - `_finalize_enum` drains the queue: constructs each instance, stamps
      `$ordinal` via `MOP::Field->value($inst) = $n`, installs accessor subs
@@ -72,7 +73,7 @@ perspective and avoids the seal-timing problem entirely.
 
 ### Why is `$ordinal` reader-only, not `:param`?
 
-If `$ordinal` had `:param`, a user writing `val FOO(ordinal => 99)` would
+If `$ordinal` had `:param`, a user writing `item FOO(ordinal => 99)` would
 either silently override our injected value or trip `:strict(params)`. Keeping
 it reader-only and stamping the value via `MOP::Field->value($inst) = $n`
 after construction prevents the leak.
@@ -86,9 +87,9 @@ manually with `parse_stmtseq(0)` after we've switched the compile-time
 package; pieces machinery doesn't expose a "stmtseq between literal braces"
 piece type.
 
-### Why is `val` parens-optional?
+### Why is `item` parens-optional?
 
-`XPK_PARENS_OPT(XPK_LISTEXPR)` gives us both `val FOO;` and `val FOO(args);`
+`XPK_PARENS_OPT(XPK_LISTEXPR)` gives us both `item FOO;` and `item FOO(args);`
 for almost no parser cost. The `.i` flag tells `.build` whether args are
 present; the `.op` (when present) is the user's list expression.
 
@@ -126,7 +127,7 @@ inside same-unit `do { ... }` and `eval "STRING"`, sees them as expected
   explicitly. Intercepting Object::Pad's `field` keyword would require
   reaching into its internals and is rejected on KISS grounds.
 - **DO NOT** use names `values`, `from_ordinal`, `from_name`, `ordinal`,
-  `name`, `new`, `BUILD`, `DOES`, or `META` as `val` names; they are reserved
+  `name`, `new`, `BUILD`, `DOES`, or `META` as `item` names; they are reserved
   by either us or Object::Pad.
 
 ## RELATED PUBLIC APIs

@@ -11,8 +11,8 @@ use Test2::V0;
    my $ord = eval q{
       use Object::Pad::Enum;
       enum InEval {
-         val A;
-         val B;
+         item A;
+         item B;
       }
       InEval->B->ordinal;
    };
@@ -21,14 +21,14 @@ use Test2::V0;
 }
 
 # do BLOCK runs at runtime within the enclosing unit, after that unit's
-# UNITCHECK. The val/finalize ops execute when the block runs.
+# UNITCHECK. The item/finalize ops execute when the block runs.
 use Object::Pad::Enum;
 
 my $result = do {
    enum InDo {
-      val X;
-      val Y;
-      val Z;
+      item X;
+      item Y;
+      item Z;
    }
    [ map { $_->ordinal } InDo->values ];
 };

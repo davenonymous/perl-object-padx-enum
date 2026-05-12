@@ -1,6 +1,6 @@
 /*  Object::Pad::Enum
  *
- *  Thin XS layer registering two keywords (`enum`, `val`) via XS::Parse::Keyword.
+ *  Thin XS layer registering two keywords (`enum`, `item`) via XS::Parse::Keyword.
  *  All non-trivial work happens in Object::Pad::Enum (the .pm) via the
  *  documented Object::Pad::MOP::Class API.
  *
@@ -29,7 +29,7 @@ static bool S_lex_consume_unichar(pTHX_ U32 c)
 
 /* Single-keyword compile-time state. We do not support nested enums; a saved
  * snapshot at entry makes accidental nesting visible as a parse-time error
- * via `val`'s check hook rather than as silent corruption.
+ * via `item`'s check hook rather than as silent corruption.
  */
 static int  inside_enum_depth     = 0;
 static SV  *current_enum_classname = NULL;
@@ -60,6 +60,7 @@ static int build_enum(pTHX_ OP **out, XSParseKeywordPiece *args[], size_t nargs,
    PERL_UNUSED_ARG(nargs);
 
    SV *packagename = args[0]->sv;
+   int nattrs      = args[1]->i;
 
    /* Snapshot prior context so a stray nested `enum` won't corrupt state. */
    SV  *saved_classname = current_enum_classname;
@@ -67,6 +68,17 @@ static int build_enum(pTHX_ OP **out, XSParseKeywordPiece *args[], size_t nargs,
 
    current_enum_classname = packagename;
    inside_enum_depth      = 1;
+
+   /* Marshal `[name, value_or_undef]` pairs into a Perl AV ref for the helper. */
+   AV *attrs_av = newAV();
+   for (int i = 0; i < nattrs; i++) {
+      AV *pair = newAV();
+      av_push(pair, SvREFCNT_inc(args[2 + i]->attr.name));
+      SV *value = args[2 + i]->attr.value;
+      av_push(pair, value ? SvREFCNT_inc(value) : newSV(0));
+      av_push(attrs_av, newRV_noinc((SV *)pair));
+   }
+   SV *attrs_ref = sv_2mortal(newRV_noinc((SV *)attrs_av));
 
    /* Drive Object::Pad::MOP::Class->begin_class via the Perl helper. This
     * sets compclassmeta, registers UNITCHECK auto-seal, and adds $ordinal.
@@ -77,6 +89,7 @@ static int build_enum(pTHX_ OP **out, XSParseKeywordPiece *args[], size_t nargs,
       SAVETMPS;
       PUSHMARK(SP);
       XPUSHs(packagename);
+      XPUSHs(attrs_ref);
       PUTBACK;
       call_pv("Object::Pad::Enum::_begin_enum", G_VOID | G_DISCARD);
       FREETMPS;
@@ -137,6 +150,7 @@ static int build_enum(pTHX_ OP **out, XSParseKeywordPiece *args[], size_t nargs,
 
 static const struct XSParseKeywordPieceType pieces_enum[] = {
    XPK_PACKAGENAME,
+   XPK_ATTRIBUTES,
    {0}
 };
 
@@ -147,58 +161,58 @@ static const struct XSParseKeywordHooks hooks_enum = {
 };
 
 /* --------------------------------------------------------------------- */
-/* `val NAME ( args, ... );`                                             */
+/* `item NAME ( args, ... );`                                            */
 /* --------------------------------------------------------------------- */
 
-static void check_val(pTHX_ void *hookdata)
+static void check_item(pTHX_ void *hookdata)
 {
    PERL_UNUSED_ARG(hookdata);
 
    if (!inside_enum_depth)
-      croak("'val' is only valid inside an 'enum { ... }' block");
+      croak("'item' is only valid inside an 'enum { ... }' block");
 }
 
-static int build_val(pTHX_ OP **out, XSParseKeywordPiece *args[], size_t nargs, void *hookdata)
+static int build_item(pTHX_ OP **out, XSParseKeywordPiece *args[], size_t nargs, void *hookdata)
 {
    PERL_UNUSED_ARG(hookdata);
    PERL_UNUSED_ARG(nargs);
 
-   SV  *valname    = args[0]->sv;
+   SV  *itemname   = args[0]->sv;
    int  has_parens = args[1]->i;
    OP  *listexpr   = has_parens ? args[2]->op : NULL;
    int  line       = args[0]->line;
 
    if (!current_enum_classname)
-      croak("Internal error: 'val %" SVf "' has no enclosing enum class", SVfARG(valname));
+      croak("Internal error: 'item %" SVf "' has no enclosing enum class", SVfARG(itemname));
 
-   /* Runtime call: _register_val(CLASSNAME, NAME, LINE, ARGS...); */
+   /* Runtime call: _register_item(CLASSNAME, NAME, LINE, ARGS...); */
    OP *call_args = newLISTOP(OP_LIST, 0, NULL, NULL);
    call_args = op_append_elem(OP_LIST, call_args,
       newSVOP(OP_CONST, 0, SvREFCNT_inc(current_enum_classname)));
    call_args = op_append_elem(OP_LIST, call_args,
-      newSVOP(OP_CONST, 0, SvREFCNT_inc(valname)));
+      newSVOP(OP_CONST, 0, SvREFCNT_inc(itemname)));
    call_args = op_append_elem(OP_LIST, call_args,
       newSVOP(OP_CONST, 0, newSViv(line)));
 
    if (listexpr)
       call_args = op_append_elem(OP_LIST, call_args, listexpr);
 
-   *out = make_call_op("Object::Pad::Enum::_register_val", call_args);
+   *out = make_call_op("Object::Pad::Enum::_register_item", call_args);
    return KEYWORD_PLUGIN_STMT;
 }
 
-static const struct XSParseKeywordPieceType pieces_val[] = {
+static const struct XSParseKeywordPieceType pieces_item[] = {
    XPK_IDENT,
    XPK_PARENS_OPT(XPK_LISTEXPR),
    XPK_AUTOSEMI,
    {0}
 };
 
-static const struct XSParseKeywordHooks hooks_val = {
-   .permit_hintkey = "Object::Pad::Enum/val",
-   .pieces         = pieces_val,
-   .check          = &check_val,
-   .build          = &build_val,
+static const struct XSParseKeywordHooks hooks_item = {
+   .permit_hintkey = "Object::Pad::Enum/item",
+   .pieces         = pieces_item,
+   .check          = &check_item,
+   .build          = &build_item,
 };
 
 /* --------------------------------------------------------------------- */
@@ -208,4 +222,4 @@ MODULE = Object::Pad::Enum   PACKAGE = Object::Pad::Enum
 BOOT:
    boot_xs_parse_keyword(0.48);
    register_xs_parse_keyword("enum", &hooks_enum, NULL);
-   register_xs_parse_keyword("val",  &hooks_val,  NULL);
+   register_xs_parse_keyword("item", &hooks_item, NULL);

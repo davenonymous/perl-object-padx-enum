@@ -7,9 +7,9 @@ use Test2::V0;
 use Object::Pad::Enum;
 
 enum Colors {
-   val RED;
-   val GREEN;
-   val BLUE;
+   item RED;
+   item GREEN;
+   item BLUE;
 }
 
 is( Colors->RED->ordinal,   0, 'RED has ordinal 0' );

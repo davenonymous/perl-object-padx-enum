@@ -6,37 +6,37 @@ use Test2::V0;
 
 use Object::Pad::Enum;
 
-# Compile-time error: val outside enum.
+# Compile-time error: item outside enum.
 {
    my $ok = eval q{
       use Object::Pad::Enum;
-      val NOPE;
+      item NOPE;
       1;
    };
-   ok( !$ok, 'val outside enum is a compile error' );
-   like( $@, qr/val/, 'error message mentions val' );
+   ok( !$ok, 'item outside enum is a compile error' );
+   like( $@, qr/item/, 'error message mentions item' );
 }
 
-# Runtime error: duplicate val name.
+# Runtime error: duplicate item name.
 {
    my $ok = eval q{
       use Object::Pad::Enum;
       enum Dup {
-         val SAME;
-         val SAME;
+         item SAME;
+         item SAME;
       }
       1;
    };
-   ok( !$ok, 'duplicate val names croak' );
-   like( $@, qr/Duplicate val 'SAME'/, 'duplicate error mentions name' );
+   ok( !$ok, 'duplicate item names croak' );
+   like( $@, qr/Duplicate item 'SAME'/, 'duplicate error mentions name' );
 }
 
-# Runtime error: reserved val name.
+# Runtime error: reserved item name.
 {
    my $ok = eval q{
       use Object::Pad::Enum;
       enum Reserved {
-         val values;
+         item values;
       }
       1;
    };
@@ -44,12 +44,12 @@ use Object::Pad::Enum;
    like( $@, qr/reserved/, 'reserved error message' );
 }
 
-# Runtime error: reserved val name "name".
+# Runtime error: reserved item name "name".
 {
    my $ok = eval q{
       use Object::Pad::Enum;
       enum ReservedName {
-         val name;
+         item name;
       }
       1;
    };
@@ -57,13 +57,13 @@ use Object::Pad::Enum;
    like( $@, qr/reserved/, 'reserved error message for name' );
 }
 
-# Compile-time error: val outside enum, without `use` in eval (hint key gates it).
+# Compile-time error: item outside enum, without `use` in eval (hint key gates it).
 {
    my $ok = eval q{
-      val LOOSE;
+      item LOOSE;
       1;
    };
-   ok( !$ok, 'val with no hint key is a syntax error' );
+   ok( !$ok, 'item with no hint key is a syntax error' );
 }
 
 done_testing;

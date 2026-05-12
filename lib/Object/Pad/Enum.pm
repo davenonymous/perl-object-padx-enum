@@ -24,8 +24,8 @@ C<Object::Pad::Enum> - syntactic sugar for enum-like singleton-bearing C<Object:
    use Object::Pad::Enum;
 
    enum Colors {
-      val RED  ( label => 'red',  hex => '#FF0000' );
-      val BLUE ( label => 'blue', hex => '#0000FF' );
+      item RED  ( label => 'red',  hex => '#FF0000' );
+      item BLUE ( label => 'blue', hex => '#0000FF' );
 
       field $label :param :reader;
       field $hex   :param :reader;
@@ -36,7 +36,7 @@ C<Object::Pad::Enum> - syntactic sugar for enum-like singleton-bearing C<Object:
    say Colors->RED->ordinal;     # 0
    say Colors->RED->name;        # RED
    say Colors->RED->label;       # red
-   say Colors->BLUE->uc_name;    # BLUE
+   say Colors->BLUE->uc_label;   # BLUE
    say $_->name for Colors->values;
 
 =head1 DESCRIPTION
@@ -45,19 +45,44 @@ C<Object::Pad::Enum> adds two keywords on top of L<Object::Pad>:
 
 =over 4
 
-=item * C<enum NAME { ... }>
+=item * C<enum NAME ATTRS? { ... }>
 
 Declares a class (using L<Object::Pad>'s C<class> machinery) and auto-injects
 C<$ordinal :reader> and C<name :reader> fields. The C<name> reader returns the
 identifier under which the singleton was declared (e.g. C<"RED">). Inside the
 block, all normal C<Object::Pad> constructs (C<field>, C<method>, C<ADJUST>,
-...) are available, plus the C<val> keyword.
+...) are available, plus the C<item> keyword.
 
-=item * C<val NAME ( ARGS );>
+The following class-level attributes are accepted:
+
+=over 4
+
+=item C<:isa(CLASS)>, C<:isa(CLASS VERSION)>
+
+=item C<:extends(CLASS)>, C<:extends(CLASS VERSION)>
+
+Declares a superclass; equivalent to L<Object::Pad>'s C<:isa>. The package is
+loaded automatically. If a VERSION is given, C<< CLASS->VERSION(VERSION) >> is
+called to enforce it.
+
+=item C<:does(ROLE)>, C<:does(ROLE VERSION)>
+
+Composes a role into the enum class. May be repeated for multiple roles. The
+role package is loaded automatically.
+
+=back
+
+The class attributes C<:abstract>, C<:strict>, C<:repr> and C<:lexical_new>
+are not supported. C<:abstract> is semantically incompatible with C<item>
+(singletons cannot be constructed for an abstract class); the others have no
+public L<Object::Pad::MOP::Class> entry point and would require reaching into
+private Object::Pad internals.
+
+=item * C<item NAME ( ARGS );>
 
 Declares a named singleton instance of the enclosing C<enum>. C<ARGS> is the
 key/value list passed to the auto-generated constructor; the parentheses (and
-the arg list) are optional, so C<val FOO;> is equivalent to C<val FOO();>.
+the arg list) are optional, so C<item FOO;> is equivalent to C<item FOO();>.
 
 =back
 
@@ -75,8 +100,8 @@ installed on the enum class for each declared singleton C<NAME>:
 
 =item *
 
-User C<field>s require explicit C<:param> if you intend to set them via C<val>
-args. C<Object::Pad::Enum> does I<not> inject C<:param> automatically.
+User C<field>s require explicit C<:param> if you intend to set them via
+C<item> args. C<Object::Pad::Enum> does I<not> inject C<:param> automatically.
 
 =item *
 
@@ -88,23 +113,24 @@ C<eval "STRING"> blocks executed during main runtime) sees them as expected.
 
 =item *
 
-C<enum>-level attributes (C<:isa>, C<:does>, C<:strict>, etc.) are not
-supported. If you need them, declare a plain C<class> instead.
+C<enum>-level C<:abstract>, C<:strict>, C<:repr> and C<:lexical_new> are not
+supported. See the description of the C<enum> keyword above for the rationale;
+C<:isa> and C<:does> I<are> supported.
 
 =item *
 
 The names C<values>, C<from_ordinal>, C<from_name>, C<ordinal> and C<name> are
-reserved and must not be used as C<val> names.
+reserved and must not be used as C<item> names.
 
 =back
 
 =cut
 
 # Per-class state captured during compilation.
-# $Pending{$class} = { meta => $meta, vals => [ [ $name, \@args, $line ], ... ], seen => { $name => 1 } }
+# $Pending{$class} = { meta => $meta, items => [ [ $name, \@args, $line ], ... ], seen => { $name => 1 } }
 my %Pending;
 
-my %RESERVED_VAL_NAMES = map { $_ => 1 } qw(
+my %RESERVED_ITEM_NAMES = map { $_ => 1 } qw(
    values from_ordinal from_name ordinal name
    new BUILD DOES META
 );
@@ -114,50 +140,141 @@ sub import {
    my $caller = caller;
 
    $^H{ 'Object::Pad::Enum/enum' } = 1;
-   $^H{ 'Object::Pad::Enum/val'  } = 1;
+   $^H{ 'Object::Pad::Enum/item' } = 1;
 
    Object::Pad->import_into( $caller );
 }
 
-# Called by XS at compile-time when `enum NAME {` is encountered.
-sub _begin_enum {
-   my ( $name ) = @_;
+# Attributes that have a documented public-MOP entry point.
+my %ENUM_ATTR_HANDLERS = (
+   isa     => \&_attr_isa,
+   extends => \&_attr_isa,
+   does    => \&_attr_does,
+);
 
-   exists $Pending{ $name }
-      and croak "Cannot declare enum '$name'; already being defined";
+# Attributes that exist on Object::Pad's `class` keyword but are deliberately
+# rejected here. The message explains why so users aren't left guessing.
+my %ENUM_ATTR_REJECTED = (
+   abstract    => "':abstract' is incompatible with enum: singleton values cannot be constructed for an abstract class",
+   strict      => "':strict' is not supported on enum (no public Object::Pad MOP entry point); declare a plain 'class' instead",
+   repr        => "':repr' is not supported on enum (no public Object::Pad MOP entry point); declare a plain 'class' instead",
+   lexical_new => "':lexical_new' is not supported on enum (no public Object::Pad MOP entry point); declare a plain 'class' instead",
+);
 
-   my $meta = Object::Pad::MOP::Class->begin_class( $name );
+# Load $pkg via `require`, mirroring Object::Pad's :isa/:does autoload. Returns
+# silently on success; croaks on failure.
+sub _require_package {
+   my ( $pkg, $for ) = @_;
 
-   # $ordinal and $_name are reader-only (not :param) so user val args cannot
-   # override them; both are stamped after construction in _finalize_enum.
-   $meta->add_field( '$ordinal', reader => 'ordinal' );
-   $meta->add_field( '$_name',   reader => 'name'    );
+   # Skip require for packages already defined inline (no .pm needed).
+   no strict 'refs';
+   keys %{ "${pkg}::" } and return;
 
-   $Pending{ $name } = { meta => $meta, vals => [], seen => {} };
+   ( my $file = "$pkg.pm" ) =~ s{::}{/}g;
+   eval { require $file; 1 }
+      or croak "Failed to load package '$pkg' for $for: $@";
 
    return;
 }
 
-# Called at runtime, in source order, for each `val NAME(args)` statement.
-sub _register_val {
+# Parse "Pkg" or "Pkg VER" into ($pkg, $ver). $ver is undef when absent.
+sub _split_versioned_pkg {
+   my ( $raw, $attr_name ) = @_;
+
+   defined $raw && length $raw
+      or croak "Attribute ':$attr_name' requires a value";
+
+   my ( $pkg, $ver, $extra ) = split /\s+/, $raw, 3;
+   defined $extra
+      and croak "Attribute ':$attr_name($raw)' has too many parts; expected 'PACKAGE' or 'PACKAGE VERSION'";
+
+   return ( $pkg, $ver );
+}
+
+sub _attr_isa {
+   my ( $state, $value ) = @_;
+
+   exists $state->{ isa }
+      and croak "Multiple ':isa' / ':extends' attributes on enum '$state->{name}'";
+
+   my ( $pkg, $ver ) = _split_versioned_pkg( $value, 'isa' );
+   _require_package( $pkg, "':isa($pkg)' on enum '$state->{name}'" );
+   defined $ver and $pkg->VERSION( $ver );
+
+   $state->{ isa } = $pkg;
+   return;
+}
+
+sub _attr_does {
+   my ( $state, $value ) = @_;
+
+   my ( $pkg, $ver ) = _split_versioned_pkg( $value, 'does' );
+   _require_package( $pkg, "':does($pkg)' on enum '$state->{name}'" );
+   defined $ver and $pkg->VERSION( $ver );
+
+   push @{ $state->{ roles } }, $pkg;
+   return;
+}
+
+# Called by XS at compile-time when `enum NAME ATTRS? {` is encountered.
+sub _begin_enum {
+   my ( $name, $attrs ) = @_;
+
+   exists $Pending{ $name }
+      and croak "Cannot declare enum '$name'; already being defined";
+
+   my $state = { name => $name, roles => [] };
+   for my $pair ( @{ $attrs // [] } ) {
+      my ( $attr, $value ) = @$pair;
+
+      if ( my $msg = $ENUM_ATTR_REJECTED{ $attr } ) {
+         croak "$msg (enum '$name')";
+      }
+
+      my $handler = $ENUM_ATTR_HANDLERS{ $attr }
+         or croak "Unrecognised attribute ':$attr' on enum '$name'";
+
+      $handler->( $state, $value );
+   }
+
+   my @begin_args = ( $name );
+   exists $state->{ isa }
+      and push @begin_args, ( isa => $state->{ isa } );
+
+   my $meta = Object::Pad::MOP::Class->begin_class( @begin_args );
+
+   $meta->add_role( $_ ) for @{ $state->{ roles } };
+
+   # $ordinal and $_name are reader-only (not :param) so user item args cannot
+   # override them; both are stamped after construction in _finalize_enum.
+   $meta->add_field( '$ordinal', reader => 'ordinal' );
+   $meta->add_field( '$_name',   reader => 'name'    );
+
+   $Pending{ $name } = { meta => $meta, items => [], seen => {} };
+
+   return;
+}
+
+# Called at runtime, in source order, for each `item NAME(args)` statement.
+sub _register_item {
    my ( $class, $name, $line, @args ) = @_;
 
    my $entry = $Pending{ $class }
-      or croak "Internal error: val '$name' for unknown enum '$class' at line $line";
+      or croak "Internal error: item '$name' for unknown enum '$class' at line $line";
 
    $entry->{ seen }{ $name }
-      and croak "Duplicate val '$name' in enum '$class' at line $line";
+      and croak "Duplicate item '$name' in enum '$class' at line $line";
 
-   $RESERVED_VAL_NAMES{ $name }
-      and croak "val name '$name' is reserved in enum '$class' at line $line";
+   $RESERVED_ITEM_NAMES{ $name }
+      and croak "item name '$name' is reserved in enum '$class' at line $line";
 
-   push @{ $entry->{ vals } }, [ $name, \@args, $line ];
+   push @{ $entry->{ items } }, [ $name, \@args, $line ];
    $entry->{ seen }{ $name } = 1;
 
    return;
 }
 
-# Called at runtime, once, after all val statements for the enum have run.
+# Called at runtime, once, after all item statements for the enum have run.
 sub _finalize_enum {
    my ( $class ) = @_;
 
@@ -170,8 +287,8 @@ sub _finalize_enum {
    my @ordered;
 
    my $n = 0;
-   for my $val ( @{ $entry->{ vals } } ) {
-      my ( $name, $args, $line ) = @$val;
+   for my $item ( @{ $entry->{ items } } ) {
+      my ( $name, $args, $line ) = @$item;
 
       my $instance = eval { $class->new( @$args ) };
       $@ and croak "Failed to construct enum value '$name' of '$class' at line $line: $@";

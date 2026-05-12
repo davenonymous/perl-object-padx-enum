@@ -7,8 +7,8 @@ use Test2::V0;
 use Object::Pad::Enum;
 
 enum Colors {
-   val RED  ( label => 'red',  hex => '#FF0000' );
-   val BLUE ( label => 'blue', hex => '#0000FF' );
+   item RED  ( label => 'red',  hex => '#FF0000' );
+   item BLUE ( label => 'blue', hex => '#0000FF' );
 
    field $label :param :reader;
    field $hex   :param :reader;

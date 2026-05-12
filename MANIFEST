@@ -8,3 +8,4 @@ t/02-fields-methods.t
 t/03-lookups.t
 t/04-errors.t
 t/05-eval-and-do.t
+t/06-attributes.t

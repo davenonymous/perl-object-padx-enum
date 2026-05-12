@@ -1,6 +1,8 @@
 Revision history for Object::Pad::Enum
 
 0.01    2026-05-12
-        First version. Two keywords: `enum NAME { ... }` and `val NAME(...)`.
+        First version. Two keywords: `enum NAME { ... }` and `item NAME(...)`.
         Auto-injects `$ordinal :reader` and installs per-value accessors
         plus `values`, `from_ordinal`, `from_name` class methods.
+        Supports `:isa(CLASS)` / `:extends(CLASS)` and `:does(ROLE)`
+        class-level attributes on `enum`, optionally with VERSION.

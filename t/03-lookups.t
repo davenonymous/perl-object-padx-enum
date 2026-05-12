@@ -7,10 +7,10 @@ use Test2::V0;
 use Object::Pad::Enum;
 
 enum Suits {
-   val CLUBS;
-   val DIAMONDS;
-   val HEARTS;
-   val SPADES;
+   item CLUBS;
+   item DIAMONDS;
+   item HEARTS;
+   item SPADES;
 }
 
 is(

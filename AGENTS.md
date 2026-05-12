@@ -57,8 +57,15 @@ For `enum Colors { item RED(name=>"r"); item BLUE; ... }`:
    - Each `item`'s runtime op evaluates its arg list and calls `_register_item`,
      queuing `[name, args, line]`.
    - `_finalize_enum` drains the queue: constructs each instance, stamps
-     `$ordinal` via `MOP::Field->value($inst) = $n`, installs accessor subs
-     via direct stash manipulation, plus `values`/`from_ordinal`/`from_name`.
+     `$ordinal` and `$_name` via `MOP::Field->value($inst) = $v`, installs
+     accessor subs via direct stash manipulation, plus
+     `values`/`from_ordinal`/`from_name`. Then it walks `mro::get_linear_isa`
+     and shadows any ancestor-enum item names not redefined locally with
+     croaking stubs, registers the class in `%EnumItems`, and finally
+     installs a `new` override that croaks for direct calls on the enum
+     class itself but passes through for any other invocant (so subclass
+     enums can construct during their own finalize, and plain subclasses
+     can still construct normally).
 
 ## KEY DESIGN DECISIONS
 
@@ -92,6 +99,34 @@ piece type.
 `XPK_PARENS_OPT(XPK_LISTEXPR)` gives us both `item FOO;` and `item FOO(args);`
 for almost no parser cost. The `.i` flag tells `.build` whether args are
 present; the `.op` (when present) is the user's list expression.
+
+### Why is `new` blocked post-finalize?
+
+After all singletons are built, `_finalize_enum` captures the original
+Object::Pad-generated `new` coderef and replaces `${class}::new` with a
+closure that croaks when called with the enum class as the invocant. The
+closure delegates to the captured original for any other invocant, so
+(a) subclass enums can construct their own singletons during their own
+finalize (their construction loop dispatches via MRO into the parent's
+override, which sees a non-self invocant and passes through), and (b) plain
+`class Sub :isa(EnumParent)` users can still call `Sub->new` normally.
+Stash override is the only viable mechanism: by the time singletons exist
+the class is sealed, so MOP `add_method` is unavailable. The construction
+loop must run *before* the override is installed.
+
+### Why shadow ancestor enum items in child stash?
+
+A child enum inherits fields/methods from its parent but should not inherit
+items: parent items have their own ordinals tied to the parent's sequence,
+and "lose items" is the documented semantic. After installing its own item
+accessors, `_finalize_enum` walks `mro::get_linear_isa` and, for any
+ancestor present in `%EnumItems`, installs a croaking stub in the child
+stash for each ancestor item name not locally redefined. Name collisions
+(child item with the same name as a parent item) are handled naturally by
+the child's own accessor going in first; the shadow loop skips any name
+already in `%own_names`. `%EnumItems` is the canonical post-finalize
+registry: it is populated before the `new` override is installed so that
+any descendant enum whose finalize runs later sees the entry.
 
 ### Singleton timing caveat
 

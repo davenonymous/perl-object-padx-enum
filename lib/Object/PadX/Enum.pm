@@ -75,6 +75,15 @@ Declares a superclass; equivalent to L<Object::Pad>'s C<:isa>. The package is
 loaded automatically. If a VERSION is given, C<< CLASS->VERSION(VERSION) >> is
 called to enforce it.
 
+An C<enum> may inherit from another C<enum>. Fields, methods, roles and
+C<ADJUST> phasers from the parent are inherited normally. The parent's
+B<items> are I<not> inherited: the child has its own ordinal-zero-based item
+sequence, and accessing a parent item name on the child raises an error. The
+child's C<values>, C<from_ordinal> and C<from_name> see only the child's
+items. A parent enum must be finalized (i.e. its declaration must have
+already executed at runtime) before a child enum that inherits from it; in
+practice this is satisfied by normal source ordering and C<use> ordering.
+
 =item C<:does(ROLE)>, C<:does(ROLE VERSION)>
 
 Composes a role into the enum class. May be repeated for multiple roles. The
@@ -103,6 +112,12 @@ installed on the enum class for each declared singleton C<NAME>:
    @all       = ClassName->values;        # all singletons in declaration order
    $byord     = ClassName->from_ordinal(0);
    $byname    = ClassName->from_name("RED");
+
+Direct construction via C<< ClassName->new(...) >> is blocked after the
+C<enum> block closes; the only ways to obtain a singleton are the per-item
+accessor, C<from_name>, and C<from_ordinal>. Subclasses (whether plain
+C<class> or another C<enum>) may still call C<new> on themselves; the block
+applies only to direct invocation on the enum class itself.
 
 =head1 CAVEATS
 
@@ -139,6 +154,12 @@ reserved and must not be used as C<item> names.
 # Per-class state captured during compilation.
 # $Pending{$class} = { meta => $meta, items => [ [ $name, \@args, $line ], ... ], seen => { $name => 1 } }
 my %Pending;
+
+# Permanent per-class registry of finalized enum item names, in declaration
+# order. Populated by `_finalize_enum`. Queried by descendant enum finalizes
+# (to shadow inherited item accessors) and could be useful for introspection
+# in the future. Keys are class names; values are arrayrefs of item names.
+my %EnumItems;
 
 my %RESERVED_ITEM_NAMES = map { $_ => 1 } qw(
    values from_ordinal from_name ordinal name
@@ -314,8 +335,10 @@ sub _finalize_enum {
    no strict 'refs';
    no warnings 'redefine';
 
+   my %own_names;
    for my $pair ( @ordered ) {
       my ( $name, $instance ) = @$pair;
+      $own_names{ $name } = 1;
       *{ "${class}::${name}" } = sub { $instance };
    }
 
@@ -337,6 +360,50 @@ sub _finalize_enum {
          return $pair->[1] if $pair->[0] eq $want;
       }
       return undef;
+   };
+
+   # Shadow ancestor enum items not redefined locally. A child enum inherits
+   # fields/methods from a parent enum but loses the parent's items: accessing
+   # a parent item name on the child raises a clear error rather than
+   # returning the parent's singleton via MRO.
+   require mro;
+   my $linear = mro::get_linear_isa( $class );
+   my %shadowed;
+   for my $ancestor ( @$linear ) {
+      next if $ancestor eq $class;
+      my $ancestor_items = $EnumItems{ $ancestor } or next;
+      for my $aname ( @$ancestor_items ) {
+         next if $own_names{ $aname };
+         next if $shadowed{ $aname };
+         $shadowed{ $aname } = $ancestor;
+         my $msg = "'$aname' is not an item of '$class' (inherited from '$ancestor', shadowed)";
+         *{ "${class}::${aname}" } = sub { croak $msg };
+      }
+   }
+
+   # Register before installing the `new` override so any descendant enum
+   # whose finalize runs later (and which calls our `new` via MRO) sees us in
+   # the registry.
+   $EnumItems{ $class } = [ map { $_->[0] } @ordered ];
+
+   # Block external construction. Capture the original Object::Pad-generated
+   # `new` so subclass enums (and plain subclasses) can pass through during
+   # their own construction; only direct calls on the enum class itself are
+   # rejected.
+   my @item_names = map { $_->[0] } @ordered;
+   my $orig_new   = \&{ "${class}::new" };
+
+   my $new_msg = "Cannot construct new instances of enum class '$class' directly";
+   if ( @item_names ) {
+      $new_msg .= '; use one of: ' . join( ', ', @item_names );
+      $new_msg .= " (or ${class}->from_name / ${class}->from_ordinal)";
+   }
+
+   *{ "${class}::new" } = sub {
+      my $invocant = shift;
+      $invocant ne $class
+         and return $invocant->$orig_new( @_ );
+      croak $new_msg;
    };
 
    return;

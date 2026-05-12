@@ -5,24 +5,26 @@
 # SYNOPSIS
 
 ```perl
+use Object::PadX::Enum;
+
 enum Raptor {
-    item VELOCIRAPTOR   ( max_speed_kmh => 60, max_weight_kg =>  15, max_height_cm =>  50 );
-    item DEINONYCHUS    ( max_speed_kmh => 50, max_weight_kg =>  80, max_height_cm =>  87 );
-    item UTAHRAPTOR     ( max_speed_kmh => 35, max_weight_kg => 500, max_height_cm => 150 );
-    item MICRORAPTOR    ( max_speed_kmh => 40, max_weight_kg =>   1, max_height_cm =>  30 );
-    item DROMAEOSAURUS  ( max_speed_kmh => 60, max_weight_kg =>  15, max_height_cm =>  50 );
+   item VELOCIRAPTOR   ( max_speed_kmh => 60, max_weight_kg =>  15, max_height_cm =>  50 );
+   item DEINONYCHUS    ( max_speed_kmh => 50, max_weight_kg =>  80, max_height_cm =>  87 );
+   item UTAHRAPTOR     ( max_speed_kmh => 35, max_weight_kg => 500, max_height_cm => 150 );
+   item MICRORAPTOR    ( max_speed_kmh => 40, max_weight_kg =>   1, max_height_cm =>  30 );
+   item DROMAEOSAURUS  ( max_speed_kmh => 60, max_weight_kg =>  15, max_height_cm =>  50 );
 
-    field $max_speed_kmh  :param :reader;
-    field $max_weight_kg  :param :reader;
-    field $max_height_cm  :param :reader;
+   field $max_speed_kmh  :param :reader;
+   field $max_weight_kg  :param :reader;
+   field $max_height_cm  :param :reader;
 
-    method speed_per_kg { return $max_speed_kmh / $max_weight_kg }
-    method speed_per_cm { return $max_speed_kmh / $max_height_cm }
+   method speed_per_kg { return $max_speed_kmh / $max_weight_kg }
+   method speed_per_cm { return $max_speed_kmh / $max_height_cm }
 
-    method fastest :common {
-        my ( $top ) = sort { $b->max_speed_kmh <=> $a->max_speed_kmh } $class->values;
-        return $top;
-    }
+   method fastest :common {
+      my ( $top ) = sort { $b->max_speed_kmh <=> $a->max_speed_kmh } $class->values;
+      return $top;
+   }
 }
 
 say Raptor->VELOCIRAPTOR->max_speed_kmh;  # 60
@@ -53,6 +55,15 @@ say 'Fastest in absolute terms: ', Raptor->fastest->name; # VELOCIRAPTOR or DROM
         loaded automatically. If a VERSION is given, `CLASS->VERSION(VERSION)` is
         called to enforce it.
 
+        An `enum` may inherit from another `enum`. Fields, methods, roles and
+        `ADJUST` phasers from the parent are inherited normally. The parent's
+        **items** are _not_ inherited: the child has its own ordinal-zero-based item
+        sequence, and accessing a parent item name on the child raises an error. The
+        child's `values`, `from_ordinal` and `from_name` see only the child's
+        items. A parent enum must be finalized (i.e. its declaration must have
+        already executed at runtime) before a child enum that inherits from it; in
+        practice this is satisfied by normal source ordering and `use` ordering.
+
     - `:does(ROLE)`, `:does(ROLE VERSION)`
 
         Composes a role into the enum class. May be repeated for multiple roles. The
@@ -73,10 +84,18 @@ say 'Fastest in absolute terms: ', Raptor->fastest->name; # VELOCIRAPTOR or DROM
 After the `enum` block closes, the following class-level methods are
 installed on the enum class for each declared singleton `NAME`:
 
-    $singleton = ClassName->NAME;          # the named singleton
-    @all       = ClassName->values;        # all singletons in declaration order
-    $byord     = ClassName->from_ordinal(0);
-    $byname    = ClassName->from_name("RED");
+```perl
+$singleton = ClassName->NAME;          # the named singleton
+@all       = ClassName->values;        # all singletons in declaration order
+$byord     = ClassName->from_ordinal(0);
+$byname    = ClassName->from_name("RED");
+```
+
+Direct construction via `ClassName->new(...)` is blocked after the
+`enum` block closes; the only ways to obtain a singleton are the per-item
+accessor, `from_name`, and `from_ordinal`. Subclasses (whether plain
+`class` or another `enum`) may still call `new` on themselves; the block
+applies only to direct invocation on the enum class itself.
 
 # CAVEATS
 

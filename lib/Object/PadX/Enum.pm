@@ -23,21 +23,31 @@ C<Object::PadX::Enum> - syntactic sugar for enum-like singleton-bearing C<Object
 
    use Object::PadX::Enum;
 
-   enum Colors {
-      item RED  ( label => 'red',  hex => '#FF0000' );
-      item BLUE ( label => 'blue', hex => '#0000FF' );
+   enum Raptor {
+      item VELOCIRAPTOR   ( max_speed_kmh => 60, max_weight_kg =>  15, max_height_cm =>  50 );
+      item DEINONYCHUS    ( max_speed_kmh => 50, max_weight_kg =>  80, max_height_cm =>  87 );
+      item UTAHRAPTOR     ( max_speed_kmh => 35, max_weight_kg => 500, max_height_cm => 150 );
+      item MICRORAPTOR    ( max_speed_kmh => 40, max_weight_kg =>   1, max_height_cm =>  30 );
+      item DROMAEOSAURUS  ( max_speed_kmh => 60, max_weight_kg =>  15, max_height_cm =>  50 );
 
-      field $label :param :reader;
-      field $hex   :param :reader;
+      field $max_speed_kmh  :param :reader;
+      field $max_weight_kg  :param :reader;
+      field $max_height_cm  :param :reader;
 
-      method uc_label { return uc $label; }
+      method speed_per_kg { return $max_speed_kmh / $max_weight_kg }
+      method speed_per_cm { return $max_speed_kmh / $max_height_cm }
+
+      method fastest :common {
+         my ( $top ) = sort { $b->max_speed_kmh <=> $a->max_speed_kmh } $class->values;
+         return $top;
+      }
    }
 
-   say Colors->RED->ordinal;     # 0
-   say Colors->RED->name;        # RED
-   say Colors->RED->label;       # red
-   say Colors->BLUE->uc_label;   # BLUE
-   say $_->name for Colors->values;
+   say Raptor->VELOCIRAPTOR->max_speed_kmh;  # 60
+   say Raptor->DEINONYCHUS->speed_per_kg;    # 0.625
+   say Raptor->from_ordinal(2)->name;        # UTAHRAPTOR
+   say Raptor->from_name("MICRORAPTOR")->speed_per_cm; # 1.33333333333333
+   say 'Fastest in absolute terms: ', Raptor->fastest->name; # VELOCIRAPTOR or DROMAEOSAURUS (tie)
 
 =head1 DESCRIPTION
 

@@ -52,6 +52,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-perl-${{ matrix.perl }}-
 
+      - name: Bootstrap configure-time dependencies
+        run: cpanm --notest Object::Pad::ExtensionBuilder XS::Parse::Keyword::Builder
+
       - name: Install declared dependencies
         run: cpanm --installdeps --notest --verbose .
 

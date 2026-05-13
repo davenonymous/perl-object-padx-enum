@@ -24,7 +24,7 @@ WriteMakefile(
     INC     => $inc,
 
     CONFIGURE_REQUIRES => {
-        'ExtUtils::MakeMaker'           => '6.64',
+        'ExtUtils::MakeMaker'           => '7.12',
         'Object::Pad::ExtensionBuilder' => '0',
         'XS::Parse::Keyword::Builder'   => '0.48',
     },

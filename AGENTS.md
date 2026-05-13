@@ -14,7 +14,7 @@ perl-object-pad-enum/
 ├── MANIFEST.SKIP
 ├── Changes
 ├── RELEASING.md                   # maintainer-only; skipped from dist
-├── lib/Object/Pad/
+├── lib/Object/PadX/
 │   ├── Enum.pm                    # import(), _begin_enum, _register_item, _finalize_enum
 │   └── Enum.xs                    # `enum` and `item` keyword registrations (XPK)
 └── t/                             # Test2::V0

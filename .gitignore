@@ -1,16 +1,26 @@
-# Module::Build artifacts
-/Build
-/_build/
-/blib/
+# EUMM artefacts
+/Makefile
+/Makefile.old
 /MYMETA.*
+/pm_to_blib
+/blib/
+/Object-PadX-Enum-*/
+*.tar.gz
 
-# XS build outputs
+# XS build outputs (XSMULTI puts these next to the .pm)
 /lib/Object/PadX/Enum.c
 /lib/Object/PadX/Enum.o
 /lib/Object/PadX/Enum.bs
+*.so
+*.dylib
+*.a
+*.lib
 
 # Editor / OS noise
 *.swp
 *.swo
+*.bak
+*.tmp
 .DS_Store
 references
+RELEASING.md

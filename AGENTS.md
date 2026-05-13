@@ -9,9 +9,11 @@ class-common accessor returning a singleton instance.
 
 ```
 perl-object-pad-enum/
-├── Build.PL                       # Module::Build + ExtensionBuilder + XPK::Builder
-├── Changes
+├── Makefile.PL                    # ExtUtils::MakeMaker + ExtensionBuilder + XPK::Builder (via INC)
 ├── MANIFEST
+├── MANIFEST.SKIP
+├── Changes
+├── RELEASING.md                   # maintainer-only; skipped from dist
 ├── lib/Object/Pad/
 │   ├── Enum.pm                    # import(), _begin_enum, _register_item, _finalize_enum
 │   └── Enum.xs                    # `enum` and `item` keyword registrations (XPK)

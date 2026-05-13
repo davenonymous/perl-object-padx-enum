@@ -13,7 +13,7 @@ enum Colors {
    field $label :param :reader;
    field $hex   :param :reader;
 
-   method uc_label() { return uc $label; }
+   method uc_label { return uc $label; }
 }
 
 is( Colors->RED->name,     'RED',     'RED->name auto-injected' );

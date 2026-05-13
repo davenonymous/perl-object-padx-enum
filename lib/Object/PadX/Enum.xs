@@ -219,6 +219,8 @@ static const struct XSParseKeywordHooks hooks_item = {
 
 MODULE = Object::PadX::Enum   PACKAGE = Object::PadX::Enum
 
+PROTOTYPES: DISABLE
+
 BOOT:
    boot_xs_parse_keyword(0.48);
    register_xs_parse_keyword("enum", &hooks_enum, NULL);

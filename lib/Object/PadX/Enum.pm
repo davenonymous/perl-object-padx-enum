@@ -1,4 +1,4 @@
-package Object::PadX::Enum 0.02;
+package Object::PadX::Enum 0.03;
 
 use v5.22;
 use warnings;

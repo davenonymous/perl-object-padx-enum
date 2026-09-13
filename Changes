@@ -1,6 +1,6 @@
 Revision history for Object::PadX::Enum
 
-0.03    (unreleased)
+0.03    2026-09-14
         Enums are now fully compile-time constructs. The enum block body
         executes while it is compiled (BEGIN-block style): item args are
         evaluated at compile time, the class is sealed early via

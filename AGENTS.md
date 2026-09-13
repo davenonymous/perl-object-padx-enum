@@ -23,7 +23,10 @@ perl-object-pad-enum/
     ├── 03-lookups.t               # values, from_ordinal, from_name, empty enum
     ├── 04-errors.t                # item outside enum, duplicates, reserved names
     ├── 05-eval-and-do.t           # eval-string and do-BLOCK contexts
-    └── 06-attributes.t            # enum :isa / :does attribute support
+    ├── 06-attributes.t            # enum :isa / :does attribute support
+    ├── 07-new-blocked.t           # post-finalize `new` blocking
+    ├── 08-enum-inheritance.t      # enum :isa enum semantics
+    └── 09-compile-time.t          # BEGIN visibility, constant folding, arg timing
 ```
 
 ## ARCHITECTURE
@@ -34,51 +37,63 @@ via the documented `Object::Pad::MOP::Class` API.
 | Layer | Responsibility                                                           |
 |-------|--------------------------------------------------------------------------|
 | XS    | Register `enum`/`item` keywords; parse package name + braces + statements |
-| XS    | Emit runtime ops calling Perl helpers (`_register_item`, `_finalize_enum`) |
+| XS    | Compile the body (with `_register_item`/`_finalize_enum` call ops) into an anon CV and execute it immediately at parse time |
 | Perl  | `_begin_enum`: `begin_class()` + add `$ordinal :reader`                  |
 | Perl  | `_register_item`: queue `[name, args, line]` in `%Pending{$class}`       |
-| Perl  | `_finalize_enum`: construct singletons, stamp ordinal, install accessors |
+| Perl  | `_finalize_enum`: seal, construct singletons, stamp ordinal, install constant accessors |
 
 ## EXECUTION TIMELINE
 
 For `enum Colors { item RED(name=>"r"); item BLUE; ... }`:
 
-1. **Parse time (XS `.build` for `enum`):**
+Everything happens at parse time of the `enum` statement (XS `.build` for
+`enum`); the emitted op is a no-op and nothing is left for the enclosing
+unit's runtime:
+
+1. **Body parse:**
    - `XPK_PACKAGENAME` reads `Colors`.
    - Call `_begin_enum("Colors")` -> `begin_class` (sets compclassmeta,
      queues UNITCHECK auto-seal CV) -> adds `$ordinal :reader` field.
    - Snapshot + switch `PL_curstash`/`PL_curstname` to `Colors`.
-   - `parse_stmtseq(0)` reads the body; Object::Pad's `field`/`method`
-     keywords fire normally; each `item` emits a runtime call op.
-   - Emit trailing op: `_finalize_enum("Colors")`.
+   - `start_subparse` opens an anon CV; `parse_stmtseq(0)` reads the body
+     into it; Object::Pad's `field`/`method` keywords fire normally; each
+     `item` emits a call op for `_register_item`.
+   - Append trailing op `_finalize_enum("Colors")`; `newATTRSUB` closes the
+     CV (the same pattern Object::Pad uses for ADJUST blocks).
 
-2. **UNITCHECK phase of the enclosing compilation unit:**
-   - `begin_class`'s queued seal CV fires; class is sealed.
+2. **Immediate execution (`call_sv` on the body CV, still inside `.build`):**
+   - Each `item` op evaluates its arg list (at compile time!) and calls
+     `_register_item`, queuing `[name, args, line]`.
+   - `_finalize_enum` calls `$meta->seal` (instances cannot be constructed
+     before seal; the auto-seal queued for UNITCHECK is too late and later
+     runs as a tolerated no-op on the already-sealed class), then drains the
+     queue: constructs each instance, stamps `$ordinal` and `$_name` via
+     `MOP::Field->value($inst) = $v`, installs each item accessor as an
+     inlinable constant sub (constant.pm's readonly-scalar-ref-in-stash
+     technique), plus `values`/`from_ordinal`/`from_name` as normal subs.
+     Then it walks `mro::get_linear_isa` and shadows any ancestor-enum item
+     names not redefined locally with croaking stubs, registers the class in
+     `%EnumItems`, and finally installs a `new` override that croaks for
+     direct calls on the enum class itself but passes through for any other
+     invocant (so subclass enums can construct during their own finalize,
+     and plain subclasses can still construct normally).
 
-3. **Runtime of that unit (in source order):**
-   - Each `item`'s runtime op evaluates its arg list and calls `_register_item`,
-     queuing `[name, args, line]`.
-   - `_finalize_enum` drains the queue: constructs each instance, stamps
-     `$ordinal` and `$_name` via `MOP::Field->value($inst) = $v`, installs
-     accessor subs via direct stash manipulation, plus
-     `values`/`from_ordinal`/`from_name`. Then it walks `mro::get_linear_isa`
-     and shadows any ancestor-enum item names not redefined locally with
-     croaking stubs, registers the class in `%EnumItems`, and finally
-     installs a `new` override that croaks for direct calls on the enum
-     class itself but passes through for any other invocant (so subclass
-     enums can construct during their own finalize, and plain subclasses
-     can still construct normally).
+Consequences: singletons exist as soon as the closing brace is parsed (even
+for later `BEGIN` blocks in the same file); item args must be compile-time
+computable; callers compiled afterwards can constant-fold `Colors::RED()`.
 
 ## KEY DESIGN DECISIONS
 
 ### Why direct stash manipulation for accessors?
 
 `mop_class_add_method_cv` croaks on a sealed class (Object::Pad's
-`class.c:1138`). Since `begin_class`'s auto-seal fires at UNITCHECK and
-singletons can only be constructed *after* seal, MOP `add_method` is
-structurally unavailable for the singleton accessors. Plain
-`*{"${pkg}::NAME"} = sub { $instance }` works identically from the caller's
-perspective and avoids the seal-timing problem entirely.
+`class.c:1138`). `_finalize_enum` must seal before constructing singletons,
+so MOP `add_method` is structurally unavailable for the singleton accessors.
+Item accessors go in as constant-sub proxies (`$stash->{NAME} = \$readonly`,
+the constant.pm technique) so that function-style calls constant-fold in
+callers; `values`/`from_ordinal`/`from_name` and the `new` override are plain
+glob assignments. Both work identically to methods from the caller's
+perspective and avoid the seal-timing problem entirely.
 
 ### Why is `$ordinal` reader-only, not `:param`?
 
@@ -130,14 +145,16 @@ already in `%own_names`. `%EnumItems` is the canonical post-finalize
 registry: it is populated before the `new` override is installed so that
 any descendant enum whose finalize runs later sees the entry.
 
-### Singleton timing caveat
+### Compile-time semantics
 
-Singletons live in the package stash only after `_finalize_enum` runs, which
-is during the *runtime* of the unit containing the `enum` block (after that
-unit's UNITCHECK seal). They are therefore not visible from earlier
-`BEGIN`/`UNITCHECK` blocks of the same unit. Normal runtime, including code
-inside same-unit `do { ... }` and `eval "STRING"`, sees them as expected
-(verified in `t/05-eval-and-do.t`).
+The enum body CV is executed during `.build`, so `_finalize_enum` has run by
+the time the closing brace has been parsed: singletons are visible to
+everything compiled afterwards, including later `BEGIN` blocks of the same
+unit (verified in `t/09-compile-time.t`). The flip side is that `item` args
+(and any plain statements in the block) execute at compile time and must not
+depend on runtime state. Enums are static, fixed value sets by design; args
+referencing runtime lexicals see whatever those contain at compile time
+(usually `undef`).
 
 ## CONVENTIONS
 
@@ -157,9 +174,8 @@ inside same-unit `do { ... }` and `eval "STRING"`, sees them as expected
 - **DO NOT** try to install singleton accessors via `$meta->add_method` -
   it croaks because the class is already sealed by the time singletons exist.
 - **DO NOT** add `:param` to `$ordinal`. See "Why is `$ordinal` reader-only".
-- **DO NOT** assume singletons are visible during compilation-time phasers
-  of the same unit (BEGIN, UNITCHECK before the seal). The caveat is real
-  and documented.
+- **DO NOT** write `item` args (or other statements inside an enum block)
+  that depend on runtime state; the block body executes at compile time.
 - **DO NOT** auto-inject `:param` on user fields. Users must write `:param`
   explicitly. Intercepting Object::Pad's `field` keyword would require
   reaching into its internals and is rejected on KISS grounds.
@@ -174,5 +190,6 @@ inside same-unit `do { ... }` and `eval "STRING"`, sees them as expected
 | Register a keyword plugin           | `XSParseKeyword.h` (`register_xs_parse_keyword`) |
 | Begin a class at compile time       | `Object::Pad::MOP::Class->begin_class`       |
 | Add a field with reader/param       | `$meta->add_field('$name', reader=>'x', ...)` |
+| Seal a class before UNITCHECK       | `$meta->seal`                               |
 | Mutate a field value on an instance | `$meta->get_field('$x')->value($inst) = $v` |
 | Probe-then-consume a single char    | local `lex_consume_unichar` shim (Enum.xs)  |

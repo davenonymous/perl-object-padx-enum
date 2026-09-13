@@ -78,10 +78,11 @@ readme :
 # --- Release target -------------------------------------------------
 # Usage: make release
 #
-# Builds and tests the dist tarball via `make disttest`, then uploads
-# it to CPAN with cpan-upload (from CPAN::Uploader). Refuses to run
-# if the git working tree is dirty or if a tag for the current
-# $(VERSION) already exists. See RELEASING.md.
+# Tests the dist via `make disttest`, builds the tarball via
+# `make dist` (disttest alone only creates the unpacked directory),
+# then uploads it to CPAN with cpan-upload (from CPAN::Uploader).
+# Refuses to run if the git working tree is dirty or if a tag for the
+# current $(VERSION) already exists. See RELEASING.md.
 
 .PHONY: release release-check
 
@@ -103,13 +104,17 @@ release-check :
 	    exit 1; \
 	}
 
-release :: release-check disttest
+release :: release-check disttest dist
+	@test -f $(DISTVNAME).tar.gz || { \
+	    echo "ERROR: $(DISTVNAME).tar.gz was not built; refusing to upload."; \
+	    exit 1; \
+	}
 	cpan-upload $(DISTVNAME).tar.gz
 	@echo
 	@echo "Uploaded $(DISTVNAME).tar.gz to PAUSE."
 	@echo "Next:"
 	@echo "  git commit -am 'Release v$(VERSION)'"
-	@echo "  git tag v$(VERSION)"
+	@echo "  git tag -a v$(VERSION) -m 'Release v$(VERSION)'"
 	@echo "  git push --follow-tags"
 MAKE_FRAG
 }
